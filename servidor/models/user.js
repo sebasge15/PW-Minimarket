@@ -40,5 +40,12 @@ module.exports = (sequelize, DataTypes) => {
         timestamps: true
     });
 
+    user.associate = function(models) {
+        user.hasMany(models.Order, {
+            foreignKey: 'user_id',
+            as: 'orders'
+        });
+    };
+
     return user;
 }

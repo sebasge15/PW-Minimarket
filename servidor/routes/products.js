@@ -2,42 +2,195 @@ const express = require('express');
 const router = express.Router();
 const db = require('../models');
 
-// ✅ 1. RUTAS ESPECÍFICAS PRIMERO:
-router.get('/featured', async (req, res) => {
+// ✅ RUTA BÁSICA: OBTENER TODOS LOS PRODUCTOS
+router.get('/', async (req, res) => {
   try {
-    const products = await db.sequelize.query(`
-      SELECT id, name, price, price_unit, image_url, old_price, discount, 
-             category, description, presentation, stock
-      FROM products 
-      WHERE is_featured = true AND is_active = true 
-      ORDER BY created_at DESC 
-      LIMIT 6
-    `, {
-      type: db.sequelize.QueryTypes.SELECT
+    console.log('🔍 GET /api/products - Obteniendo todos los productos...');
+    
+    // Obtener productos activos
+    const products = await db.Product.findAll({
+      where: { 
+        is_active: true 
+      },
+      order: [['created_at', 'DESC']]
     });
-
-    console.log(`✅ Productos destacados encontrados: ${products.length}`);
-
+    
+    console.log(`✅ ${products.length} productos encontrados`);
+    
+    // Log de algunos productos para debug
+    if (products.length > 0) {
+      console.log('📦 Primeros productos:');
+      products.slice(0, 3).forEach((product, index) => {
+        console.log(`   ${index + 1}. ${product.name} - $${product.price}`);
+      });
+    }
+    
     res.status(200).json({
       success: true,
+      count: products.length,
+      products: products
+    });
+    
+  } catch (error) {
+    console.error('❌ Error al obtener productos:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor al obtener productos',
+      error: error.message
+    });
+  }
+});
+
+// ✅ RUTA PARA PRODUCTOS DESTACADOS (la que ya funciona en HomePage)
+router.get('/featured', async (req, res) => {
+  try {
+    console.log('🔍 GET /api/products/featured - Obteniendo productos destacados...');
+    
+    const featuredProducts = await db.Product.findAll({
+      where: { 
+        is_active: true,
+        is_featured: true 
+      },
+      order: [['created_at', 'DESC']],
+      limit: 10
+    });
+    
+    console.log(`✅ ${featuredProducts.length} productos destacados encontrados`);
+    
+    res.status(200).json({
+      success: true,
+      count: featuredProducts.length,
+      products: featuredProducts
+    });
+    
+  } catch (error) {
+    console.error('❌ Error al obtener productos destacados:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener productos destacados',
+      error: error.message
+    });
+  }
+});
+
+// ✅ DEBUG: VER TODOS LOS PRODUCTOS (incluso inactivos)
+router.get('/debug/all', async (req, res) => {
+  try {
+    const allProducts = await db.Product.findAll({
+      order: [['created_at', 'DESC']]
+    });
+    
+    console.log(`🔍 Debug - Total productos en BD: ${allProducts.length}`);
+    console.log(`   - Activos: ${allProducts.filter(p => p.is_active).length}`);
+    console.log(`   - Inactivos: ${allProducts.filter(p => !p.is_active).length}`);
+    
+    res.json({
+      success: true,
+      total: allProducts.length,
+      active: allProducts.filter(p => p.is_active).length,
+      inactive: allProducts.filter(p => !p.is_active).length,
+      products: allProducts.map(p => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        category: p.category,
+        is_active: p.is_active,
+        is_featured: p.is_featured
+      }))
+    });
+  } catch (error) {
+    console.error('❌ Error en debug:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ✅ 1. RUTAS ESPECÍFICAS PRIMERO:
+
+router.get('/search', async (req, res) => {
+  try {
+    const { q } = req.query;
+    
+    console.log(`🔍 Búsqueda solicitada: "${q}"`);
+    
+    if (!q || q.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'El parámetro de búsqueda es requerido'
+      });
+    }
+    
+    const searchTerm = q.trim();
+    console.log(`🔍 Término de búsqueda procesado: "${searchTerm}"`);
+    
+    // Búsqueda en múltiples campos usando tu estructura existente
+    const sql = `
+      SELECT id, name, price, price_unit, image_url, old_price, discount, 
+             category, description, presentation, stock, is_active, is_featured
+      FROM products 
+      WHERE is_active = true 
+        AND (
+          LOWER(name) LIKE LOWER($1) OR 
+          LOWER(description) LIKE LOWER($1) OR 
+          LOWER(category) LIKE LOWER($1) OR
+          LOWER(presentation) LIKE LOWER($1)
+        )
+      ORDER BY 
+        CASE 
+          WHEN LOWER(name) LIKE LOWER($2) THEN 1
+          WHEN LOWER(name) LIKE LOWER($1) THEN 2
+          WHEN LOWER(category) LIKE LOWER($1) THEN 3
+          ELSE 4
+        END,
+        name ASC
+      LIMIT 20
+    `;
+    
+    const searchPattern = `%${searchTerm}%`;
+    const exactNamePattern = `${searchTerm}%`;
+    
+    const products = await db.sequelize.query(sql, {
+      bind: [searchPattern, exactNamePattern],
+      type: db.sequelize.QueryTypes.SELECT
+    });
+    
+    console.log(`✅ Búsqueda completada: ${products.length} productos encontrados`);
+    
+    if (products.length > 0) {
+      console.log('📦 Primeros resultados de búsqueda:');
+      products.slice(0, 3).forEach((product, index) => {
+        console.log(`   ${index + 1}. ${product.name} (${product.category})`);
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      query: searchTerm,
       products: products.map(product => ({
         id: product.id,
         name: product.name,
-        price: `S/ ${product.price} ${product.price_unit}`,
+        price: `S/ ${product.price} ${product.price_unit || ''}`,
         imageUrl: product.image_url,
         oldPrice: product.old_price ? `S/ ${product.old_price}` : null,
         discount: product.discount,
         category: product.category,
         description: product.description,
         presentation: product.presentation,
-        stock: product.stock
-      }))
+        stock: product.stock,
+        isActive: product.is_active,
+        isFeatured: product.is_featured
+      })),
+      count: products.length
     });
+    
   } catch (error) {
-    console.error('Error:', error);
+    console.error('❌ Error en búsqueda de productos:', error);
     res.status(500).json({
       success: false,
-      message: 'Error interno del servidor'
+      message: 'Error interno del servidor en la búsqueda',
+      error: error.message
     });
   }
 });

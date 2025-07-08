@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ProductCard from './ProductCard';
 import CategoryCard from './CategoryCard';
+import { useAuth } from './autenticacion';
 import './HomePage.css';
 
 import bannerPrincipal from '../assets/bannerpromocional.png';
@@ -15,38 +16,33 @@ const bannerImages = [
 const PRODUCTS_PER_PAGE = 3; 
 
 function HomePage({ addToCart }) {
+  const { user, isAuthenticated } = useAuth();
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [currentProductPage, setCurrentProductPage] = useState(0);
   const [featuredProducts, setFeaturedProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [error, setError] = useState(null);
 
   // Cargar productos destacados desde la API
   useEffect(() => {
     const fetchFeaturedProducts = async () => {
       try {
-        console.log('Iniciando fetch de productos destacados...');
+        console.log('Cargando productos destacados...');
         const response = await fetch('http://localhost:3001/api/products/featured');
         const data = await response.json();
         
         if (data.success) {
-          console.log('📦 Productos recibidos:', data.products);
-          
-          // Debugging detallado de URLs
-          data.products.forEach((product, index) => {
-            console.log(`🖼️ Producto ${index + 1}: ${product.name}`);
-            console.log(`   - URL imagen: ${product.imageUrl}`);
-            console.log(`   - URL completa: http://localhost:3001${product.imageUrl}`);
-          });
-          
+          console.log('✅ Productos destacados cargados:', data.products.length);
           setFeaturedProducts(data.products);
         } else {
+          console.error('Error al cargar productos destacados:', data.message);
           setError('Error al cargar productos destacados');
         }
       } catch (error) {
-        console.error('Error al cargar productos:', error);
-        setError('Error de conexión al cargar productos');
+        console.error('Error al cargar productos destacados:', error);
+        setError('Error de conexión al cargar productos destacados');
       } finally {
         setLoading(false);
       }
@@ -59,152 +55,195 @@ function HomePage({ addToCart }) {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        console.log('🔍 Cargando categorías...');
+        setCategoriesLoading(true);
+        console.log('🔍 Iniciando carga de categorías...');
+        
         const response = await fetch('http://localhost:3001/api/categories');
+        console.log('📡 Status de respuesta:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
+        console.log('📦 Datos de categorías recibidos:', data);
         
-        console.log('📦 Respuesta de categorías:', data);
-        
-        if (data.success) {
-          console.log(`✅ ${data.categories.length} categorías encontradas:`);
-          data.categories.forEach((category, index) => {
-            console.log(`   ${index + 1}. ${category.name}`);
-            console.log(`      - imageUrl: "${category.imageUrl}"`);
-            console.log(`      - URL completa: http://localhost:3001${category.imageUrl}`);
-          });
-          
+        if (data.success && data.categories) {
+          console.log(`✅ ${data.categories.length} categorías cargadas exitosamente`);
           setCategories(data.categories);
         } else {
           console.error('❌ Error en respuesta de categorías:', data.message);
-          setError('Error al cargar categorías');
+          setError(data.message || 'Error al cargar categorías');
         }
       } catch (error) {
         console.error('❌ Error al cargar categorías:', error);
         setError('Error de conexión al cargar categorías');
+      } finally {
+        setCategoriesLoading(false);
       }
     };
 
     fetchCategories();
   }, []);
 
-  // Banner automático
+  // Rotación automática del banner
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentBannerIndex((prevIndex) => (prevIndex + 1) % bannerImages.length);
-    }, 4000); 
-    return () => clearInterval(timer);
+    const interval = setInterval(() => {
+      setCurrentBannerIndex((prevIndex) => 
+        (prevIndex + 1) % bannerImages.length
+      );
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  const totalProductPages = Math.ceil(featuredProducts.length / PRODUCTS_PER_PAGE);
+  // Paginación de productos
+  const totalPages = Math.ceil(featuredProducts.length / PRODUCTS_PER_PAGE);
+  const currentProducts = featuredProducts.slice(
+    currentProductPage * PRODUCTS_PER_PAGE,
+    (currentProductPage + 1) * PRODUCTS_PER_PAGE
+  );
 
-  const handleNextProducts = () => {
-    setCurrentProductPage((prevPage) => (prevPage + 1) % totalProductPages);
+  const nextPage = () => {
+    setCurrentProductPage((prev) => (prev + 1) % totalPages);
   };
 
-  const handlePrevProducts = () => {
-    setCurrentProductPage((prevPage) => (prevPage - 1 + totalProductPages) % totalProductPages);
+  const prevPage = () => {
+    setCurrentProductPage((prev) => (prev - 1 + totalPages) % totalPages);
   };
 
-  const startIndex = currentProductPage * PRODUCTS_PER_PAGE;
-  const endIndex = startIndex + PRODUCTS_PER_PAGE;
-  const displayedProducts = featuredProducts.slice(startIndex, endIndex);
+  const goToBannerSlide = (index) => {
+    setCurrentBannerIndex(index);
+  };
 
-  if (loading) {
+  if (loading && categoriesLoading) {
     return (
-      <div className="homepage-container">
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '50vh',
-          fontSize: '18px' 
-        }}>
-          Cargando productos...
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="homepage-container">
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '50vh',
-          fontSize: '18px',
-          color: 'red' 
-        }}>
-          {error}
+      <div className="home-page">
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <p>Cargando contenido...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="homepage-container">
-      <section
-        className="banner-section"
-        style={{ backgroundImage: `url(${bannerImages[currentBannerIndex]})` }}
-      >
-        <div className="banner-text-overlay">
-          <h1>¡Las Mejores Ofertas!</h1>
-          <p>Descubre productos increíbles a precios inigualables esta temporada.</p>
-          <button className="promo-button">VER TODAS LAS OFERTAS</button>
-        </div>
-      </section>
-
-      <section className="products-section">
-        <div className="section-header-controls">
-          <button
-            className="arrow-button prev-arrow"
-            onClick={handlePrevProducts}
-            disabled={featuredProducts.length <= PRODUCTS_PER_PAGE}
-          >
-            &lt;
-          </button>
-          <h2 className="section-title"><span>Productos Destacados</span></h2>
-          <button
-            className="arrow-button next-arrow"
-            onClick={handleNextProducts}
-            disabled={featuredProducts.length <= PRODUCTS_PER_PAGE}
-          >
-            &gt;
-          </button>
-        </div>
-        
-        {displayedProducts.length > 0 ? (
-          <div className="products-grid">
-            {displayedProducts.map(product => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onAddToCart={addToCart}
+    <div className="home-page">
+      {/* Banner Principal con Mensaje Personalizado */}
+      <section className="banner-section">
+        <div className="banner-container">
+          <div className="banner-image-wrapper">
+            <img 
+              src={bannerImages[currentBannerIndex]}
+              alt="Banner promocional"
+              className="banner-image"
+            />
+            <div className="banner-overlay">
+              <div className="banner-content">
+                <h1 className="banner-title">
+                  {isAuthenticated() && user ? 
+                    `¡Bienvenido, ${user.nombre}!` : 
+                    '¡Las Mejores Ofertas!'
+                  }
+                </h1>
+                <p className="banner-subtitle">Encuentra todo lo que necesitas al mejor precio</p>
+                <button className="banner-button">Ver Ofertas</button>
+              </div>
+            </div>
+          </div>
+          
+          {/* Indicadores del banner */}
+          <div className="banner-indicators">
+            {bannerImages.map((_, index) => (
+              <button
+                key={index}
+                className={`indicator ${index === currentBannerIndex ? 'active' : ''}`}
+                onClick={() => goToBannerSlide(index)}
               />
             ))}
           </div>
-        ) : (
-          <div style={{ textAlign: 'center', padding: '20px' }}>
-            <p>No hay productos destacados disponibles</p>
-          </div>
-        )}
+        </div>
       </section>
 
-      <section className="categories-section">
-        <h2 className="section-title"><span>Explorar Categorías</span></h2>
-        {categories.length > 0 ? (
-          <div className="categories-grid">
-            {categories.map(category => (
-              <CategoryCard key={category.id} category={category} />
-            ))}
+      {/* SECCIÓN DE PRODUCTOS DESTACADOS (PRIMERO) */}
+      <section className="products-section">
+        <div className="container">
+          <div className="products-header">
+            <h2 className="section-title">
+              {isAuthenticated() && user ? 
+                `Productos Destacados para ti, ${user.nombre}` : 
+                'Productos Destacados'
+              }
+            </h2>
+            
+            {featuredProducts.length > PRODUCTS_PER_PAGE && (
+              <div className="pagination-controls">
+                <button onClick={prevPage} className="pagination-button">‹</button>
+                <span className="pagination-info">
+                  {currentProductPage + 1} de {totalPages}
+                </span>
+                <button onClick={nextPage} className="pagination-button">›</button>
+              </div>
+            )}
           </div>
-        ) : (
-          <div style={{ textAlign: 'center', padding: '20px' }}>
-            <p>No hay categorías disponibles</p>
-          </div>
-        )}
+
+          {loading ? (
+            <div className="products-loading">
+              <div className="loading-spinner"></div>
+              <p>Cargando productos...</p>
+            </div>
+          ) : currentProducts.length > 0 ? (
+            <div className="products-grid">
+              {currentProducts.map(product => (
+                <ProductCard 
+                  key={product.id}
+                  product={product}
+                  onAddToCart={addToCart}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="products-error">
+              <p>No hay productos destacados disponibles</p>
+            </div>
+          )}
+        </div>
       </section>
+
+      {/* SECCIÓN DE CATEGORÍAS (SEGUNDO) */}
+      <section className="categories-section">
+        <div className="container">
+          <h2 className="section-title">Explora por Categorías</h2>
+          
+          {categoriesLoading ? (
+            <div className="categories-loading">
+              <div className="loading-spinner"></div>
+              <p>Cargando categorías...</p>
+            </div>
+          ) : categories.length > 0 ? (
+            <div className="categories-grid">
+              {categories.map(category => (
+                <CategoryCard 
+                  key={category.id}
+                  category={category}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="categories-error">
+              <p>No se pudieron cargar las categorías</p>
+              <button onClick={() => window.location.reload()}>Reintentar</button>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {error && (
+        <div className="error-banner">
+          <p>{error}</p>
+          <button onClick={() => setError(null)}>Cerrar</button>
+        </div>
+      )}
     </div>
   );
 }

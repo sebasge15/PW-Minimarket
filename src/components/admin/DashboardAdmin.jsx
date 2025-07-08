@@ -1,55 +1,172 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import LayoutAdmin from './LayoutAdmin.jsx';
 import './dashboardAdmin.css';
 
-const usuariosEjemplo = [
-  { id: 1, nombre: 'Juan Perez', estado: 'Activo', email: 'juanperez@gmail.com', fecha: '20/01/2025', foto: '/src/assets/photo-1664871475935-39a9b861514f.jpeg' },
-  { id: 2, nombre: 'Maria Gonzalez', estado: 'Activo', email: 'maria@gmail.com', fecha: '19/01/2025', foto: '/src/assets/premium_photo-1689530775582-83b8abdb5020.jpeg' },
-  { id: 3, nombre: 'Alejandro Ruiz', estado: 'Inactivo', email: 'alejandro@gmail.com', fecha: '18/01/2025', foto: '/src/assets/premium_photo-1689551670902-19b441a6afde.jpeg' },
-];
-
-const ordenesEjemplo = [
-  { id: '#1234', usuario: 'Alejandro Ruiz', fecha: '20/01/2025', total: 190.0, estado: 'Entregado' },
-  { id: '#1235', usuario: 'Juan Perez', fecha: '20/01/2025', total: 250.0, estado: 'Entregado' },
-  { id: '#1236', usuario: 'Maria Gonzalez', fecha: '20/01/2025', total: 90.0, estado: 'Entregado' },
-];
-
 function AdminDashboard() {
-  const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(usuariosEjemplo[0]);
+  const [stats, setStats] = useState({
+    totalOrders: 0,
+    newUsers: 0,
+    totalRevenue: 0
+  });
+  const [recentUsers, setRecentUsers] = useState([]);
+  const [recentOrders, setRecentOrders] = useState([]);
+  const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const currentUser = JSON.parse(localStorage.getItem("currentUser"));
   if (!currentUser || currentUser.role !== "admin") {
     window.location.href = "/";
     return null;
   }
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      console.log('🔍 Cargando datos del dashboard...');
+
+      // Obtener estadísticas generales
+      try {
+        const statsResponse = await fetch('http://localhost:3001/api/admin/stats');
+        const statsData = await statsResponse.json();
+        
+        console.log('📊 Respuesta de estadísticas:', statsData);
+        
+        if (statsData.success) {
+          setStats(statsData.stats);
+          console.log('✅ Estadísticas cargadas:', statsData.stats);
+        } else {
+          console.warn('⚠️ Error en estadísticas:', statsData.message);
+        }
+      } catch (error) {
+        console.error('❌ Error al obtener estadísticas:', error);
+      }
+
+      // Obtener usuarios recientes
+      try {
+        const usersResponse = await fetch('http://localhost:3001/api/admin/users/recent');
+        const usersData = await usersResponse.json();
+        
+        console.log('👥 Respuesta de usuarios:', usersData);
+        
+        if (usersData.success) {
+          setRecentUsers(usersData.users);
+          if (usersData.users.length > 0) {
+            setUsuarioSeleccionado(usersData.users[0]);
+          }
+          console.log('✅ Usuarios cargados:', usersData.users.length);
+          
+          // Debug: mostrar estructura de usuarios
+          if (usersData.debug) {
+            console.log('🔍 DEBUG Usuarios - Columnas disponibles:', usersData.debug.columns);
+            console.log('🔍 DEBUG Usuarios - Estructura muestra:', usersData.debug.sampleStructure);
+          }
+        } else {
+          console.warn('⚠️ Error en usuarios:', usersData.message);
+        }
+      } catch (error) {
+        console.error('❌ Error al obtener usuarios:', error);
+      }
+
+      // Obtener órdenes recientes
+      try {
+        const ordersResponse = await fetch('http://localhost:3001/api/admin/orders/recent');
+        const ordersData = await ordersResponse.json();
+        
+        console.log('📋 Respuesta de órdenes:', ordersData);
+        
+        if (ordersData.success) {
+          setRecentOrders(ordersData.orders);
+          console.log('✅ Órdenes cargadas:', ordersData.orders.length);
+          
+          // Debug: mostrar estructura de órdenes
+          if (ordersData.debug) {
+            console.log('🔍 DEBUG Órdenes - Columnas disponibles:', ordersData.debug.columns);
+            console.log('🔍 DEBUG Órdenes - Estructura muestra:', ordersData.debug.sampleStructure);
+          }
+        } else {
+          console.warn('⚠️ Error en órdenes:', ordersData.message);
+        }
+      } catch (error) {
+        console.error('❌ Error al obtener órdenes:', error);
+      }
+
+      console.log('✅ Proceso de carga del dashboard completado');
+
+    } catch (error) {
+      console.error('❌ Error general al cargar dashboard:', error);
+      setError('Error al cargar los datos del dashboard');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <>
+        <LayoutAdmin />
+        <div className="admin-dashboard dashboard-container">
+          <div style={{ textAlign: 'center', padding: '50px' }}>
+            <div className="loading-spinner"></div>
+            <h2>Cargando dashboard...</h2>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  if (error) {
+    return (
+      <>
+        <LayoutAdmin />
+        <div className="admin-dashboard dashboard-container">
+          <div style={{ textAlign: 'center', padding: '50px', color: 'red' }}>
+            <h2>Error</h2>
+            <p>{error}</p>
+            <button onClick={fetchDashboardData} className="btn">
+              Reintentar
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <LayoutAdmin />
       <div className="admin-dashboard dashboard-container">
         <h1>📊 Panel de Administración</h1>
 
-      
+        {/* Métricas principales */}
         <div className="metric-cards">
           <div className="metric-card">
             <h3>Órdenes</h3>
-            <span>{ordenesEjemplo.length}</span>
+            <span>{stats.totalOrders}</span>
           </div>
           <div className="metric-card">
             <h3>Usuarios nuevos</h3>
-            <span>{usuariosEjemplo.length}</span>
+            <span>{stats.newUsers}</span>
           </div>
           <div className="metric-card">
             <h3>Ingresos totales</h3>
-            <span>S/ {ordenesEjemplo.reduce((acc, o) => acc + o.total, 0).toFixed(2)}</span>
+            <span>S/ {stats.totalRevenue?.toFixed(2) || '0.00'}</span>
           </div>
         </div>
 
-        
+        {/* Panel principal */}
         <div className="panel-flex">
-          
+          {/* Usuarios registrados */}
           <div className="panel-left table-card">
             <div className="tabla-header">
               <h2>Usuarios registrados</h2>
-              <button className="btn" onClick={() => window.location.href = '/admin/ListaUsuario'}>👥 Ver todos los usuarios</button>
+              <button className="btn" onClick={() => window.location.href = '/admin/ListaUsuario'}>
+                👥 Ver todos los usuarios
+              </button>
             </div>
             <table>
               <thead>
@@ -60,42 +177,62 @@ function AdminDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {usuariosEjemplo.map((u) => (
-                  <tr key={u.id}>
-                    <td>{u.nombre}</td>
-                    <td className={u.estado === 'Activo' ? 'activo' : 'inactivo'}>{u.estado}</td>
-                    <td>
-                      <button onClick={() => setUsuarioSeleccionado(u)} className="btn">
-                        🔍 Ver detalle
-                      </button>
+                {recentUsers.length > 0 ? (
+                  recentUsers.map((user) => (
+                    <tr key={user.id}>
+                      <td>{user.nombre}</td>
+                      <td className={user.is_active ? 'activo' : 'inactivo'}>
+                        {user.is_active ? 'Activo' : 'Inactivo'}
+                      </td>
+                      <td>
+                        <button onClick={() => setUsuarioSeleccionado(user)} className="btn">
+                          🔍 Ver detalle
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="3" style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
+                      No hay usuarios recientes
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
-            <div className="pagination">
-              <button className="active">1</button>
-              <button>2</button>
-              <button>3</button>
-            </div>
           </div>
 
-          
+          {/* Detalle del usuario */}
           <div className="panel-right user-detail">
             <h2>Detalle del usuario</h2>
-            {usuarioSeleccionado && (
+            {usuarioSeleccionado ? (
               <>
-                <img src={usuarioSeleccionado.foto} alt="Perfil" />
+                <div className="user-avatar">
+                  {usuarioSeleccionado.foto ? (
+                    <img src={usuarioSeleccionado.foto} alt="Perfil" />
+                  ) : (
+                    <div className="default-avatar">
+                      {usuarioSeleccionado.nombre?.charAt(0)?.toUpperCase() || '?'}
+                    </div>
+                  )}
+                </div>
                 <p><strong>Nombre:</strong> {usuarioSeleccionado.nombre}</p>
                 <p><strong>Email:</strong> {usuarioSeleccionado.email}</p>
-                <p><strong>Fecha de registro:</strong> {usuarioSeleccionado.fecha}</p>
-                <p><strong>Estado:</strong> {usuarioSeleccionado.estado}</p>
+                <p><strong>Rol:</strong> {usuarioSeleccionado.role || 'user'}</p>
+                <p><strong>Fecha de registro:</strong> {
+                  new Date(usuarioSeleccionado.created_at).toLocaleDateString('es-ES')
+                }</p>
+                <p><strong>Estado:</strong> {usuarioSeleccionado.is_active ? 'Activo' : 'Inactivo'}</p>
               </>
+            ) : (
+              <p style={{ textAlign: 'center', color: '#666', padding: '20px' }}>
+                Selecciona un usuario para ver sus detalles
+              </p>
             )}
           </div>
         </div>
 
-        
+        {/* Listado de órdenes */}
         <div className="table-card">
           <div className="tabla-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2>Listado de órdenes</h2>
@@ -103,7 +240,7 @@ function AdminDashboard() {
               <button className="btn" onClick={() => window.location.href = '/admin/productos'}>
                 📦 Ver productos
               </button>
-              <button className="btn" onClick={() => window.location.href = '/admin/ordenes2'} >
+              <button className="btn" onClick={() => window.location.href = '/admin/ordenes2'}>
                 📋 Ver todas las órdenes
               </button>
             </div>
@@ -119,22 +256,29 @@ function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {ordenesEjemplo.map((o, i) => (
-                <tr key={i}>
-                  <td className="id">{o.id}</td>
-                  <td>{o.usuario}</td>
-                  <td>{o.fecha}</td>
-                  <td>S/ {o.total.toFixed(2)}</td>
-                  <td>{o.estado}</td>
+              {recentOrders.length > 0 ? (
+                recentOrders.map((order) => (
+                  <tr key={order.id}>
+                    <td className="id">#{order.id}</td>
+                    <td>{order.user_name || order.usuario || 'Usuario desconocido'}</td>
+                    <td>{new Date(order.created_at).toLocaleDateString('es-ES')}</td>
+                    <td>S/ {parseFloat(order.total || 0).toFixed(2)}</td>
+                    <td>
+                      <span className={`status ${order.status?.toLowerCase() || 'pendiente'}`}>
+                        {order.status || 'Pendiente'}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
+                    No hay órdenes recientes
+                  </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
-          <div className="pagination">
-            <button className="active">1</button>
-            <button>2</button>
-            <button>3</button>
-          </div>
         </div>
       </div>
     </>

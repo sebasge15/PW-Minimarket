@@ -26,13 +26,7 @@ import ListaUsuarios from './components/admin/ListaUsuario';
 import DetalleUsuario from './components/admin/DetalleUsuario';
 import CategoriesPage from './components/CategoriesPage';
 import ProtectedRoute from './components/ProtectedRoute';
-
-const ProductsPagePlaceholder = ({ addToCart }) => (
-  <div>
-    <h2>Página de Productos</h2>
-    <p>Contenido de productos o resultados de búsqueda irá aquí.</p>
-  </div>
-);
+import ProductsPage from './components/ProductsPage'; // Cambiar de ProductsPagePlaceholder
 
 function AppContent() {
   const [cartItems, setCartItems] = useState([]);
@@ -158,10 +152,14 @@ function AppContent() {
         <Route path="/login" element={<UserLayout {...userLayoutProps}><Login onRegisterClick={goToRegister} onRecoverClick={goToRecover} onBack={goToHome} /></UserLayout>}/>
         <Route path="/registro" element={<UserLayout {...userLayoutProps}><Registro onLoginClick={goToLogin} /></UserLayout>}/>
         <Route path="/recuperar" element={<UserLayout {...userLayoutProps}><Recuperar onLoginClick={goToLogin} /></UserLayout>}/>
-        <Route path="/productos" element={<UserLayout {...userLayoutProps}><ProductsPagePlaceholder addToCart={handleAddToCart} /></UserLayout>}/>
+        <Route path="/productos" element={<UserLayout {...userLayoutProps}><ProductsPage addToCart={handleAddToCart} /></UserLayout>}/>
         <Route path="/categorias" element={<UserLayout {...userLayoutProps}><CategoriesPage addToCart={handleAddToCart} /></UserLayout>}/>
+        
+        {/* AGREGAR ESTA RUTA PARA CATEGORÍAS INDIVIDUALES */}
+        <Route path="/categoria/:categoryName" element={<UserLayout {...userLayoutProps}><CategoriesPage addToCart={handleAddToCart} /></UserLayout>}/>
+        
         <Route 
-          path="/producto/:id"  // Changed from :productId to :id
+          path="/producto/:id"
           element={
             <UserLayout {...userLayoutProps}>
               <ProductDetailPage addToCart={handleAddToCart} />

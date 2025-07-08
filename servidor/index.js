@@ -11,7 +11,8 @@ const db = require('./models');
 const userRoutes = require('./routes/users');
 const productRoutes = require('./routes/products');
 const categoryRoutes = require('./routes/categories');
-const orderRoutes = require('./routes/orders'); // Add this line
+const orderRoutes = require('./routes/orders'); 
+const adminRoutes = require('./routes/admin');
 
 // CORS configuration
 app.use(cors({
@@ -106,7 +107,8 @@ app.use('/assets', express.static(assetsPath, {
 app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
-app.use('/api/orders', orderRoutes); // Add this line
+app.use('/api/orders', orderRoutes); 
+app.use('/api/admin', adminRoutes);
 
 // Ruta de prueba para assets
 app.get('/api/test-assets', (req, res) => {

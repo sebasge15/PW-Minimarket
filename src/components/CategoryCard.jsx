@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import './CategoryCard.css'; // Agregar esta línea
 
 function CategoryCard({ category }) {
   const [imageError, setImageError] = useState(false);
@@ -39,7 +40,6 @@ function CategoryCard({ category }) {
     <div 
       className="category-card" 
       onClick={handleClick}
-      style={{ cursor: 'pointer' }}
     >
       <div className="category-image-container">
         {hasValidImageUrl && !imageError ? (
@@ -51,20 +51,7 @@ function CategoryCard({ category }) {
             onError={handleImageError}
           />
         ) : (
-          <div 
-            className="category-image placeholder-image"
-            style={{
-              width: '100%',
-              height: '150px',
-              backgroundColor: '#f5f5f5',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexDirection: 'column',
-              border: '2px dashed #ddd',
-              color: '#999'
-            }}
-          >
+          <div className="category-image placeholder-image">
             <div style={{ fontSize: '24px' }}>📂</div>
             <div style={{ fontSize: '12px', marginTop: '5px' }}>
               {!hasValidImageUrl ? 'Sin imagen configurada' : 'Imagen no disponible'}
@@ -86,6 +73,9 @@ function CategoryCard({ category }) {
         {category.description && (
           <p className="category-description">{category.description}</p>
         )}
+        <div style={{ fontSize: '0.8rem', color: '#999', textAlign: 'center', marginTop: '5px' }}>
+          {category.productCount || 0} producto{(category.productCount || 0) !== 1 ? 's' : ''}
+        </div>
       </div>
     </div>
   );

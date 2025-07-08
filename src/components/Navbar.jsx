@@ -1,14 +1,24 @@
-
 import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
 
 function Navbar() { 
-  const categories = ['Inicio', 'Nosotros', 'Productos', 'Categorias'];
+  const location = useLocation();
+  
+  const categories = ['Inicio', 'Nosotros', 'Productos', 'Categorías'];
 
   const routes = {
     'Inicio'      : '/',
     'Nosotros'   : '/nosotros',
     'Productos'   : '/productos',
-    'Categorias'  : '/categorias',
+    'Categorías'  : '/categorias',
+  };
+
+  // Función para verificar si la ruta está activa
+  const isActiveRoute = (route) => {
+    if (route === '/' && location.pathname === '/') {
+      return true;
+    }
+    return location.pathname.startsWith(route) && route !== '/';
   };
 
   return (
@@ -17,15 +27,21 @@ function Navbar() {
         <ul className="nav-list">
           {categories.map((category) => (
             <li key={category} className="nav-item">
-              <a href={routes[category]} className="nav-link">
+              <Link 
+                to={routes[category]} 
+                className={`nav-link ${isActiveRoute(routes[category]) ? 'active' : ''}`}
+              >
                 {category}
-              </a>
+              </Link>
             </li>
           ))}
           <li className="nav-item">
-            <a href="#" className="nav-link offers-link">
+            <Link 
+              to="/productos?ofertas=true" 
+              className={`nav-link offers-link ${location.search.includes('ofertas=true') ? 'active' : ''}`}
+            >
               Ofertas
-            </a>
+            </Link>
           </li>
         </ul>
       </div>

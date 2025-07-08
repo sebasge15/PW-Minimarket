@@ -8,6 +8,15 @@ module.exports = (sequelize, DataTypes) => {
         notEmpty: true
       }
     },
+    userId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: 'user_id',
+      references: {
+        model: 'users',
+        key: 'id'
+      }
+    },
     clientName: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -60,6 +69,11 @@ module.exports = (sequelize, DataTypes) => {
     Order.hasMany(models.OrderItem, {
       foreignKey: 'order_id',
       as: 'items'
+    });
+    
+    Order.belongsTo(models.user, {
+      foreignKey: 'user_id',
+      as: 'user'
     });
   };
 
