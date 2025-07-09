@@ -160,18 +160,20 @@ function AdminDashboard() {
 
         {/* Panel principal */}
         <div className="panel-flex">
-          {/* Usuarios registrados */}
+          {/* Usuarios registrados - VERSIÓN CORREGIDA */}
           <div className="panel-left table-card">
             <div className="tabla-header">
-              <h2>Usuarios registrados</h2>
+              <h2>👥 Usuarios registrados ({recentUsers.length})</h2>
               <button className="btn" onClick={() => window.location.href = '/admin/ListaUsuario'}>
-                👥 Ver todos los usuarios
+                📋 Ver todos los usuarios
               </button>
             </div>
             <table>
               <thead>
                 <tr>
                   <th>Nombre</th>
+                  <th>Email</th>
+                  <th>Rol</th>
                   <th>Estado</th>
                   <th>Acciones</th>
                 </tr>
@@ -180,20 +182,57 @@ function AdminDashboard() {
                 {recentUsers.length > 0 ? (
                   recentUsers.map((user) => (
                     <tr key={user.id}>
-                      <td>{user.nombre}</td>
-                      <td className={user.is_active ? 'activo' : 'inactivo'}>
-                        {user.is_active ? 'Activo' : 'Inactivo'}
+                      <td>
+                        <strong>{user.nombre}</strong>
                       </td>
                       <td>
-                        <button onClick={() => setUsuarioSeleccionado(user)} className="btn">
-                          🔍 Ver detalle
-                        </button>
+                        <span style={{ color: '#666', fontSize: '0.9rem' }}>{user.email}</span>
+                      </td>
+                      <td>
+                        <span className={`role ${user.role}`}>
+                          {user.role === 'admin' ? '👑 Admin' : '👤 Usuario'}
+                        </span>
+                      </td>
+                      <td>
+                        {/* ✅ MOSTRAR ESTADO REAL BASADO EN is_active */}
+                        <span className={user.is_active ? 'activo' : 'inactivo'}>
+                          {user.is_active ? '✅ Activo' : '❌ Inactivo'}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '5px' }}>
+                          <button 
+                            onClick={() => setUsuarioSeleccionado(user)} 
+                            className="btn-small primary"
+                            title="Ver detalle"
+                          >
+                            👁️ Ver
+                          </button>
+                          {user.is_active ? (
+                            <button 
+                              className="btn-small danger"
+                              onClick={() => desactivarUsuario(user.id)}
+                              disabled={user.role === 'admin'}
+                              title={user.role === 'admin' ? 'No se puede desactivar admin' : 'Desactivar usuario'}
+                            >
+                              🚫
+                            </button>
+                          ) : (
+                            <button 
+                              className="btn-small success"
+                              onClick={() => reactivarUsuario(user.id)}
+                              title="Reactivar usuario"
+                            >
+                              ✅
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="3" style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
+                    <td colSpan="5" style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
                       No hay usuarios recientes
                     </td>
                   </tr>

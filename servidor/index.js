@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const bodyParser = require('body-parser');
 const app = express();
 
 const db = require('./models');
@@ -14,44 +13,17 @@ const categoryRoutes = require('./routes/categories');
 const orderRoutes = require('./routes/orders'); 
 const adminRoutes = require('./routes/admin');
 
-// CORS configuration
+// ✅ CORS ÚNICO
 app.use(cors({
-  origin: 'http://localhost:5173', // Your React app URL
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  origin: 'http://localhost:5173',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
 
-// Body parser configuration
-app.use(bodyParser.json({
-  verify: (req, res, buf) => {
-    try {
-      JSON.parse(buf);
-    } catch (e) {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid JSON payload',
-        error: e.message
-      });
-    }
-  }
-}));
-
-// Middlewares básicos
-app.use(express.json({
-  verify: (req, res, buf) => {
-    try {
-      JSON.parse(buf);
-    } catch (e) {
-      // If it's not JSON, just continue
-      return;
-    }
-  }
-}));
-app.use(cors({
-  origin: 'http://localhost:5173',
-  credentials: true
-}));
+// ✅ MIDDLEWARE DE PARSING SIMPLIFICADO (sin verificación problemática)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
 // CONFIGURACIÓN CORREGIDA para servir archivos estáticos
 const assetsPath = path.join(__dirname, '..', 'src', 'assets');
@@ -103,12 +75,43 @@ app.use('/assets', express.static(assetsPath, {
   }
 }));
 
-// Usar las rutas de la API
-app.use('/api/users', userRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/categories', categoryRoutes);
-app.use('/api/orders', orderRoutes); 
-app.use('/api/admin', adminRoutes);
+// ✅ LOGGING DE RUTAS PARA DETECTAR PROBLEMAS
+console.log('🔍 Registrando rutas...');
+
+try {
+  app.use('/api/users', userRoutes);
+  console.log('✅ Rutas de users registradas');
+} catch (error) {
+  console.error('❌ Error en rutas users:', error.message);
+}
+
+try {
+  app.use('/api/products', productRoutes);
+  console.log('✅ Rutas de products registradas');
+} catch (error) {
+  console.error('❌ Error en rutas products:', error.message);
+}
+
+try {
+  app.use('/api/categories', categoryRoutes);
+  console.log('✅ Rutas de categories registradas');
+} catch (error) {
+  console.error('❌ Error en rutas categories:', error.message);
+}
+
+try {
+  app.use('/api/orders', orderRoutes);
+  console.log('✅ Rutas de orders registradas');
+} catch (error) {
+  console.error('❌ Error en rutas orders:', error.message);
+}
+
+try {
+  app.use('/api/admin', adminRoutes);
+  console.log('✅ Rutas de admin registradas');
+} catch (error) {
+  console.error('❌ Error en rutas admin:', error.message);
+}
 
 // Ruta de prueba para assets
 app.get('/api/test-assets', (req, res) => {
@@ -139,13 +142,20 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Error handling middleware
+// ✅ MIDDLEWARE DE MANEJO DE ERRORES MEJORADO
 app.use((err, req, res, next) => {
-  console.error('❌ Error:', err);
+  console.error('❌ Error capturado:', err);
+  
+  // Verificar si ya se enviaron headers
+  if (res.headersSent) {
+    console.error('⚠️ Headers ya enviados, delegando al manejo por defecto');
+    return next(err);
+  }
+  
   res.status(err.status || 500).json({
     success: false,
-    message: err.message || 'Internal Server Error',
-    error: process.env.NODE_ENV === 'development' ? err : {}
+    message: err.message || 'Error interno del servidor',
+    error: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 });
 

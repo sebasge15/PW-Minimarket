@@ -98,39 +98,31 @@ router.get('/users/recent', async (req, res) => {
   try {
     console.log('🔍 Obteniendo usuarios recientes...');
     
-    const users = await db.sequelize.query(
-      `SELECT 
-        id,
-        nombre,
-        apellido,
-        email,
-        dni,
-        role,
-        "createdAt",
-        "updatedAt"
-       FROM users 
-       ORDER BY "createdAt" DESC 
-       LIMIT 10`,
-      { type: db.sequelize.QueryTypes.SELECT }
-    );
-    
-    console.log(`✅ ${users.length} usuarios recientes encontrados`);
-    if (users.length > 0) {
-      console.log('👤 Primer usuario:');
-      console.log(`   - ID: ${users[0].id}`);
-      console.log(`   - Nombre: ${users[0].nombre} ${users[0].apellido}`);
-      console.log(`   - Email: ${users[0].email}`);
-      console.log(`   - Rol: ${users[0].role}`);
-    }
-    
-    // Formatear usuarios para el frontend
+    const users = await db.user.findAll({
+      attributes: [
+        'id', 
+        'nombre', 
+        'apellido', 
+        'email', 
+        'dni', 
+        'role', 
+        'is_active',  // ✅ IMPORTANTE: Incluir este campo
+        'createdAt', 
+        'updatedAt'
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: 10
+    });
+
+    console.log(`✅ ${users.length} usuarios encontrados`);
+
     const formattedUsers = users.map(user => ({
       id: user.id,
       nombre: `${user.nombre} ${user.apellido || ''}`.trim(),
       email: user.email,
       dni: user.dni,
       role: user.role || 'user',
-      is_active: true, // Por defecto, ya que no tienes esta columna
+      is_active: user.is_active,  // ✅ INCLUIR EN LA RESPUESTA
       created_at: user.createdAt,
       updated_at: user.updatedAt
     }));
@@ -397,6 +389,93 @@ router.post('/debug/create-test-data', async (req, res) => {
     console.error('❌ Error al crear datos de prueba:', error);
     res.status(500).json({
       success: false,
+      error: error.message
+    });
+  }
+});
+
+// ✅ RUTA ADICIONAL: Obtener estadísticas de órdenes
+router.get('/stats/summary', async (req, res) => {
+  try {
+    console.log('📊 Obteniendo estadísticas de órdenes...');
+
+    const stats = await db.sequelize.query(`
+      SELECT 
+        COUNT(*) as total_ordenes,
+        COUNT(CASE WHEN status = 'Pendiente' THEN 1 END) as pendientes,
+        COUNT(CASE WHEN status = 'Procesando' THEN 1 END) as procesando,
+        COUNT(CASE WHEN status = 'Completada' THEN 1 END) as completadas,
+        COUNT(CASE WHEN status = 'Cancelada' THEN 1 END) as canceladas,
+        COUNT(CASE WHEN status = 'Entregada' THEN 1 END) as entregadas,
+        COALESCE(SUM(CASE WHEN status IN ('Completada', 'Entregada') THEN totalAmount END), 0) as ventas_totales,
+        COALESCE(AVG(CASE WHEN status IN ('Completada', 'Entregada') THEN totalAmount END), 0) as promedio_venta
+      FROM orders
+    `, {
+      type: db.sequelize.QueryTypes.SELECT
+    });
+
+    const estadisticas = stats[0];
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        total_ordenes: parseInt(estadisticas.total_ordenes),
+        pendientes: parseInt(estadisticas.pendientes),
+        procesando: parseInt(estadisticas.procesando),
+        completadas: parseInt(estadisticas.completadas),
+        canceladas: parseInt(estadisticas.canceladas),
+        entregadas: parseInt(estadisticas.entregadas),
+        ventas_totales: parseFloat(estadisticas.ventas_totales),
+        promedio_venta: parseFloat(estadisticas.promedio_venta)
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error al obtener estadísticas:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener estadísticas de órdenes',
+      error: error.message
+    });
+  }
+});
+
+// ✅ RUTA ADICIONAL: Cancelar múltiples órdenes
+router.put('/bulk/cancel', async (req, res) => {
+  try {
+    const { order_ids } = req.body;
+
+    if (!order_ids || !Array.isArray(order_ids) || order_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Se requiere un array de IDs de órdenes'
+      });
+    }
+
+    console.log(`🔄 Cancelando ${order_ids.length} órdenes...`);
+
+    const [updatedCount] = await db.sequelize.query(`
+      UPDATE orders 
+      SET status = 'Cancelada', updatedAt = NOW()
+      WHERE id IN (:orderIds) AND status NOT IN ('Completada', 'Entregada', 'Cancelada')
+    `, {
+      replacements: { orderIds: order_ids },
+      type: db.sequelize.QueryTypes.UPDATE
+    });
+
+    console.log(`✅ ${updatedCount} órdenes canceladas`);
+
+    res.status(200).json({
+      success: true,
+      message: `${updatedCount} órdenes canceladas exitosamente`,
+      cancelled_count: updatedCount
+    });
+
+  } catch (error) {
+    console.error('❌ Error al cancelar órdenes:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al cancelar órdenes',
       error: error.message
     });
   }

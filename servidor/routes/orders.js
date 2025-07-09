@@ -227,4 +227,119 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Actualizar estado de orden
+router.put('/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    console.log(`🔄 Actualizando orden ${id} a estado: ${status}`);
+
+    // Validar que se envíe el estado
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        message: 'Estado es obligatorio'
+      });
+    }
+
+    // Validar estados permitidos
+    const estadosPermitidos = ['Pendiente', 'Procesando', 'Completada', 'Cancelada', 'Entregada'];
+    if (!estadosPermitidos.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Estado no válido. Estados permitidos: ${estadosPermitidos.join(', ')}`
+      });
+    }
+
+    // Buscar la orden
+    const orden = await db.Order.findByPk(id);
+
+    if (!orden) {
+      return res.status(404).json({
+        success: false,
+        message: 'Orden no encontrada'
+      });
+    }
+
+    // Validar transiciones de estado
+    const estadoActual = orden.status;
+    
+    // No permitir cambios desde estados finales
+    if (estadoActual === 'Completada' || estadoActual === 'Entregada') {
+      if (status !== 'Cancelada') {
+        return res.status(400).json({
+          success: false,
+          message: `No se puede cambiar el estado desde ${estadoActual} a ${status}`
+        });
+      }
+    }
+
+    // Actualizar la orden
+    await orden.update({
+      status: status,
+      updatedAt: new Date()
+    });
+
+    console.log(`✅ Orden ${id} actualizada de ${estadoActual} a ${status}`);
+
+    // Obtener la orden actualizada con sus items
+    const ordenActualizada = await db.Order.findByPk(id, {
+      include: [{
+        model: db.OrderItem,
+        as: 'items',
+        include: [{
+          model: db.Product,
+          as: 'product'
+        }]
+      }]
+    });
+
+    // Transformar la respuesta
+    const plainOrder = ordenActualizada.get({ plain: true });
+    const transformedOrder = {
+      id: plainOrder.id,
+      clientName: plainOrder.clientName,
+      clientEmail: plainOrder.clientEmail,
+      clientPhone: plainOrder.clientPhone,
+      shippingAddress: plainOrder.shippingAddress,
+      totalAmount: parseFloat(plainOrder.totalAmount),
+      status: plainOrder.status,
+      paymentMethod: plainOrder.paymentMethod,
+      createdAt: new Date(plainOrder.createdAt).toISOString(),
+      updatedAt: new Date(plainOrder.updatedAt).toISOString(),
+      items: plainOrder.items?.map(item => ({
+        id: item.id,
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: parseFloat(item.unitPrice),
+        totalPrice: parseFloat(item.totalPrice),
+        product: item.product ? {
+          id: item.product.id,
+          name: item.product.name,
+          price: parseFloat(item.product.price),
+          image_url: item.product.image_url,
+          presentation: item.product.presentation
+        } : null
+      })) || []
+    };
+
+    res.status(200).json({
+      success: true,
+      message: `Estado de orden actualizado exitosamente a ${status}`,
+      order: transformedOrder,
+      previous_status: estadoActual,
+      new_status: status
+    });
+
+  } catch (error) {
+    console.error('❌ Error al actualizar estado de orden:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor al actualizar estado de orden',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;

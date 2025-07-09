@@ -120,6 +120,9 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    console.log(`🔐 Intento de login para: ${email}`);
+
+    // Validar que se envíen email y password
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -129,40 +132,56 @@ router.post('/login', async (req, res) => {
 
     // Buscar usuario por email
     const user = await db.user.findOne({
-      where: { email: email.toLowerCase() }
+      where: {
+        email: email.toLowerCase().trim()
+      }
     });
 
     if (!user) {
+      console.log(`❌ Usuario no encontrado: ${email}`);
       return res.status(401).json({
         success: false,
-        message: 'Credenciales inválidas'
+        message: 'Credenciales incorrectas o usuario inexistente'
+      });
+    }
+
+    // ✅ VERIFICAR SI EL USUARIO ESTÁ ACTIVO
+    if (!user.is_active) {
+      console.log(`🚫 Usuario desactivado intentó login: ${email}`);
+      return res.status(403).json({
+        success: false,
+        message: 'Tu cuenta ha sido desactivada. Contacta al administrador.'
       });
     }
 
     // Verificar contraseña
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const passwordMatch = await bcrypt.compare(password, user.password);
 
-    if (!isPasswordValid) {
+    if (!passwordMatch) {
+      console.log(`❌ Contraseña incorrecta para: ${email}`);
       return res.status(401).json({
         success: false,
-        message: 'Credenciales inválidas'
+        message: 'Credenciales incorrectas'
       });
     }
 
-    // Responder sin incluir la contraseña
+    console.log(`✅ Login exitoso para: ${email} (${user.role})`);
+
+    // Respuesta exitosa (sin enviar la contraseña)
     const { password: _, ...userResponse } = user.toJSON();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Login exitoso',
       user: userResponse
     });
 
   } catch (error) {
-    console.error('Error en el login:', error);
-    res.status(500).json({
+    console.error('❌ Error en login:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Error interno del servidor'
+      message: 'Error interno del servidor',
+      error: error.message
     });
   }
 });
@@ -170,19 +189,26 @@ router.post('/login', async (req, res) => {
 // Ruta para obtener todos los usuarios (solo para admin)
 router.get('/', async (req, res) => {
   try {
+    console.log('🔍 Obteniendo todos los usuarios...');
+    
     const users = await db.user.findAll({
-      attributes: { exclude: ['password'] } // Excluir contraseñas
+      attributes: ['id', 'nombre', 'apellido', 'email', 'dni', 'role', 'is_active', 'createdAt', 'updatedAt'],
+      order: [['createdAt', 'DESC']]
     });
+
+    console.log(`✅ ${users.length} usuarios encontrados`);
 
     res.status(200).json({
       success: true,
-      users
+      users: users
     });
+
   } catch (error) {
-    console.error('Error al obtener usuarios:', error);
+    console.error('❌ Error al obtener usuarios:', error);
     res.status(500).json({
       success: false,
-      message: 'Error interno del servidor'
+      message: 'Error al obtener usuarios',
+      error: error.message
     });
   }
 });
@@ -191,9 +217,10 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    console.log(`🔍 Obteniendo usuario con ID: ${id}`);
 
     const user = await db.user.findByPk(id, {
-      attributes: { exclude: ['password'] }
+      attributes: ['id', 'nombre', 'apellido', 'email', 'dni', 'role', 'is_active', 'createdAt', 'updatedAt']
     });
 
     if (!user) {
@@ -203,15 +230,19 @@ router.get('/:id', async (req, res) => {
       });
     }
 
+    console.log(`✅ Usuario encontrado: ${user.nombre} ${user.apellido}`);
+
     res.status(200).json({
       success: true,
-      user
+      user: user
     });
+
   } catch (error) {
-    console.error('Error al obtener usuario:', error);
+    console.error('❌ Error al obtener usuario:', error);
     res.status(500).json({
       success: false,
-      message: 'Error interno del servidor'
+      message: 'Error al obtener usuario',
+      error: error.message
     });
   }
 });
@@ -378,6 +409,104 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor'
+    });
+  }
+  
+});
+
+// ✅ AGREGAR ESTAS RUTAS ANTES DEL module.exports = router;
+
+// Ruta para desactivar usuario (soft delete)
+router.put('/:id/deactivate', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`🚫 Desactivando usuario con ID: ${id}`);
+
+    const user = await db.user.findByPk(id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    if (!user.is_active) {
+      return res.status(400).json({
+        success: false,
+        message: 'El usuario ya está desactivado'
+      });
+    }
+
+    if (user.role === 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'No se puede desactivar un usuario administrador'
+      });
+    }
+
+    await user.update({ is_active: false });
+
+    console.log(`✅ Usuario ${user.nombre} ${user.apellido} desactivado`);
+
+    const { password: _, ...userResponse } = user.toJSON();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Usuario desactivado exitosamente',
+      user: userResponse
+    });
+
+  } catch (error) {
+    console.error('❌ Error al desactivar usuario:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al desactivar usuario',
+      error: error.message
+    });
+  }
+});
+
+// Ruta para reactivar usuario
+router.put('/:id/activate', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`✅ Reactivando usuario con ID: ${id}`);
+
+    const user = await db.user.findByPk(id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    if (user.is_active) {
+      return res.status(400).json({
+        success: false,
+        message: 'El usuario ya está activo'
+      });
+    }
+
+    await user.update({ is_active: true });
+
+    console.log(`✅ Usuario ${user.nombre} ${user.apellido} reactivado`);
+
+    const { password: _, ...userResponse } = user.toJSON();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Usuario reactivado exitosamente',
+      user: userResponse
+    });
+
+  } catch (error) {
+    console.error('❌ Error al reactivar usuario:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al reactivar usuario',
+      error: error.message
     });
   }
 });
